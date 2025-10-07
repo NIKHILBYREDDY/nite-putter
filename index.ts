@@ -1,3 +1,9 @@
+import 'react-native-gesture-handler';
+// Reanimated causes web bundling issues; load it only on native
+import { Platform } from 'react-native';
+if (Platform.OS !== 'web') {
+  require('react-native-reanimated');
+}
 import { registerRootComponent } from 'expo';
 
 import App from './App';
