@@ -1,4 +1,4 @@
-import { create } from 'zustand';
+﻿import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
@@ -38,6 +38,8 @@ interface NiteControlActions {
   scanForCups: () => Promise<void>;
   connectToCup: (cupId: string) => Promise<void>;
   disconnectFromCup: (cupId: string) => Promise<void>;
+  addCup: (cup: Partial<Cup> & { id: string }) => void;
+  removeCup: (cupId: string) => void;
   renameCup: (cupId: string, name: string) => void;
   selectCup: (cupId: string) => void;
   deselectCup: (cupId: string) => void;
@@ -47,6 +49,7 @@ interface NiteControlActions {
   setCupColor: (cupId: string, color: string) => Promise<void>;
   setMode: (mode: CupMode) => Promise<void>;
   setBrightness: (brightness: number) => Promise<void>;
+  setCupBrightness: (cupId: string, brightness: number) => Promise<void>;
   savePreset: (name: string) => void;
   deletePreset: (presetId: string) => void;
   applyPreset: (presetId: string) => Promise<void>;
@@ -180,6 +183,54 @@ export const useNiteControlStore = create<NiteControlStore>()(
         }
       },
 
+      addCup: (cup: Partial<Cup> & { id: string }) => {
+        set((state) => {
+          // Enforce a maximum of 18 cups globally
+          if (state.cups.length >= 18) {
+            return {
+              cups: state.cups,
+              error: 'Maximum of 18 cups reached',
+            };
+          }
+          const exists = state.cups.some((c) => c.id === cup.id);
+          if (exists) {
+            return {
+              cups: state.cups.map((c) =>
+                c.id === cup.id
+                  ? {
+                      ...c,
+                      ...cup,
+                      name: cup.name ?? c.name,
+                      isConnected: cup.isConnected ?? c.isConnected,
+                      batteryLevel: cup.batteryLevel ?? c.batteryLevel,
+                      color: cup.color ?? c.color,
+                      mode: cup.mode ?? c.mode,
+                      brightness: cup.brightness ?? c.brightness,
+                    }
+                  : c
+              ),
+            };
+          }
+          const newCup: Cup = {
+            id: cup.id,
+            name: cup.name ?? `Cup ${state.cups.length + 1}`,
+            isConnected: cup.isConnected ?? false,
+            batteryLevel: cup.batteryLevel ?? 80,
+            color: cup.color ?? state.currentColor,
+            mode: cup.mode ?? state.currentMode,
+            brightness: cup.brightness ?? state.currentBrightness,
+          };
+          return { cups: [...state.cups, newCup] };
+        });
+      },
+
+      removeCup: (cupId: string) => {
+        set((state) => ({
+          cups: state.cups.filter((c) => c.id !== cupId),
+          selectedCups: state.selectedCups.filter((id) => id !== cupId),
+        }));
+      },
+
       renameCup: (cupId: string, name: string) => {
         set(state => ({
           cups: state.cups.map(cup =>
@@ -281,6 +332,21 @@ export const useNiteControlStore = create<NiteControlStore>()(
           }));
         } catch (error) {
           set({ error: 'Failed to set brightness' });
+        }
+      },
+
+      setCupBrightness: async (cupId: string, brightness: number) => {
+        try {
+          // Mock BLE brightness update for specific cup - replace with real BLE later
+          await new Promise(resolve => setTimeout(resolve, 200));
+
+          set(state => ({
+            cups: state.cups.map(cup =>
+              cup.id === cupId ? { ...cup, brightness } : cup
+            ),
+          }));
+        } catch (error) {
+          set({ error: 'Failed to set cup brightness' });
         }
       },
 

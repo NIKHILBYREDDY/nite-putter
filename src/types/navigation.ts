@@ -38,6 +38,7 @@ export type NiteControlStackParamList = {
     cupName: string;
     currentColor: string;
   };
+  QrScan: undefined;
 };
 
 // Profile Stack Navigator Types
@@ -87,6 +88,7 @@ export type HomeScreenProps = TabScreenProps<'Home'>;
 export type NiteControlScreenProps = NiteControlStackScreenProps<'NiteControlMain'>;
 export type MultiCupControlScreenProps = NiteControlStackScreenProps<'MultiCupControl'>;
 export type ColorWheelScreenProps = NiteControlStackScreenProps<'ColorWheel'>;
+export type QrScanScreenProps = NiteControlStackScreenProps<'QrScan'>;
 
 export type ShopScreenProps = ShopStackScreenProps<'ShopMain'>;
 export type ProductDetailScreenProps = ShopStackScreenProps<'ProductDetail'>;

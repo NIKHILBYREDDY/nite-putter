@@ -18,8 +18,10 @@ import * as Haptics from 'expo-haptics';
 import { Ionicons } from '@expo/vector-icons';
 
 import { colors } from '../../lib/theme';
-import { Cup } from '../../store/niteControlStore';
+import { Cup, useNiteControlStore } from '../../store/niteControlStore';
 import { MultiCupControlScreenProps } from '../../types/navigation';
+import { AddCupOptionsModal } from '../../components/ui/AddCupOptionsModal';
+import { BleScanModal } from './BleScanModal';
 
 const { width } = Dimensions.get('window');
 const CARD_MARGIN = 12;
@@ -30,6 +32,7 @@ interface CupCardProps {
   cup: Cup;
   onPress: () => void;
   onRename: () => void;
+  onDelete: () => void;
   onConnect: () => void;
   onDisconnect: () => void;
   onSelect: () => void;
@@ -40,6 +43,7 @@ const CupCard: React.FC<CupCardProps> = ({
   cup, 
   onPress, 
   onRename, 
+  onDelete,
   onConnect, 
   onDisconnect, 
   onSelect, 
@@ -133,18 +137,32 @@ const CupCard: React.FC<CupCardProps> = ({
             />
           </View>
           
-          <TouchableOpacity 
-            style={styles.renameButton}
-            onPressIn={() => setPressingChild(true)}
-            onPressOut={() => setPressingChild(false)}
-            onPress={() => {
-              childPressBlockUntilRef.current = Date.now() + 600;
-              onRename();
-            }}
-            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-          >
-            <Ionicons name="pencil" size={14} color={colors.text.secondary} />
-          </TouchableOpacity>
+          <View style={{ flexDirection: 'row', gap: 6 }}>
+            <TouchableOpacity 
+              style={styles.renameButton}
+              onPressIn={() => setPressingChild(true)}
+              onPressOut={() => setPressingChild(false)}
+              onPress={() => {
+                childPressBlockUntilRef.current = Date.now() + 600;
+                onRename();
+              }}
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+            >
+              <Ionicons name="pencil" size={14} color={colors.text.secondary} />
+            </TouchableOpacity>
+            <TouchableOpacity 
+              style={styles.deleteButton}
+              onPressIn={() => setPressingChild(true)}
+              onPressOut={() => setPressingChild(false)}
+              onPress={() => {
+                childPressBlockUntilRef.current = Date.now() + 600;
+                onDelete();
+              }}
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+            >
+              <Ionicons name="trash" size={14} color={colors.status.error} />
+            </TouchableOpacity>
+          </View>
         </View>
 
         {/* Cup Name */}
@@ -223,6 +241,13 @@ const CupCard: React.FC<CupCardProps> = ({
 };
 
 export const MultiCupControlScreen: React.FC<MultiCupControlScreenProps> = ({ navigation }) => {
+  const {
+    cups,
+    connectToCup,
+    disconnectFromCup,
+    removeCup,
+    renameCup,
+  } = useNiteControlStore();
   
   const [showRenameModal, setShowRenameModal] = useState(false);
   const [selectedCupForRename, setSelectedCupForRename] = useState<Cup | null>(null);
@@ -231,6 +256,8 @@ export const MultiCupControlScreen: React.FC<MultiCupControlScreenProps> = ({ na
   const [connectProgress, setConnectProgress] = useState(0);
   const connectPulse = React.useRef(new Animated.Value(1)).current;
   const connectLoopRef = React.useRef<Animated.CompositeAnimation | null>(null);
+  const [showAddOptions, setShowAddOptions] = useState(false);
+  const [showBleModal, setShowBleModal] = useState(false);
   
   // Selection state
   const [selectedCupIds, setSelectedCupIds] = useState<Set<string>>(new Set());
@@ -281,45 +308,7 @@ export const MultiCupControlScreen: React.FC<MultiCupControlScreenProps> = ({ na
     };
   }, [isConnectingAll, connectPulse]);
 
-  // Generate mock data for 18 cups with more realistic names
-  const colorOptions = [
-    colors.neon.green,
-    colors.neon.blue,
-    colors.neon.purple,
-    colors.neon.pink,
-    colors.neon.yellow,
-    colors.neon.orange,
-    '#FF0080', // Hot pink
-    '#00FFFF', // Cyan
-    '#FF4500', // Orange red
-  ];
-  
-  const nameOptions = [
-    'Player 1', 'Player 2', 'Player 3', 'Alex', 'Jordan', 'Casey',
-    'Morgan', 'Taylor', 'Riley', 'Avery', 'Quinn', 'Sage',
-    'Cup 13', 'Cup 14', 'Cup 15', 'Cup 16', 'Cup 17', 'Cup 18'
-  ];
-  
-  const modeOptions: Cup['mode'][] = ['static', 'pulse', 'strobe', 'rainbow'];
-  
-  // Initialize cups state
-  const [cups, setCups] = useState<Cup[]>(() => 
-    Array.from({ length: 18 }, (_, index) => {
-      const colorIndex = index % colorOptions.length;
-      const nameIndex = index % nameOptions.length;
-      const modeIndex = index % modeOptions.length;
-      
-      return {
-        id: `cup_${index + 1}`,
-        isConnected: Math.random() > 0.4, // 60% chance of being connected
-        color: colorOptions[colorIndex]!,
-        batteryLevel: Math.floor(Math.random() * 100) + 1,
-        name: nameOptions[nameIndex]!,
-        mode: modeOptions[modeIndex]!,
-        brightness: Math.floor(Math.random() * 100) + 1,
-      };
-    })
-  );
+  // Cups are sourced from global store
 
   const connectedCups = cups.filter(cup => cup.isConnected);
 
@@ -353,15 +342,7 @@ export const MultiCupControlScreen: React.FC<MultiCupControlScreenProps> = ({ na
 
   const handleSaveRename = () => {
     if (newCupName.trim() && selectedCupForRename) {
-      // Update the cup name in state
-      setCups(prevCups => 
-        prevCups.map(cup => 
-          cup.id === selectedCupForRename.id 
-            ? { ...cup, name: newCupName.trim() }
-            : cup
-        )
-      );
-      
+      renameCup(selectedCupForRename.id, newCupName.trim());
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       setShowRenameModal(false);
       setSelectedCupForRename(null);
@@ -397,25 +378,13 @@ export const MultiCupControlScreen: React.FC<MultiCupControlScreenProps> = ({ na
   };
 
   // Connection handlers
-  const handleConnect = (cupId: string) => {
-    setCups(prevCups => 
-      prevCups.map(cup => 
-        cup.id === cupId 
-          ? { ...cup, isConnected: true }
-          : cup
-      )
-    );
+  const handleConnect = async (cupId: string) => {
+    await connectToCup(cupId);
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
   };
 
-  const handleDisconnect = (cupId: string) => {
-    setCups(prevCups => 
-      prevCups.map(cup => 
-        cup.id === cupId 
-          ? { ...cup, isConnected: false }
-          : cup
-      )
-    );
+  const handleDisconnect = async (cupId: string) => {
+    await disconnectFromCup(cupId);
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
   };
 
@@ -429,16 +398,11 @@ export const MultiCupControlScreen: React.FC<MultiCupControlScreenProps> = ({ na
     try {
       const total = cups.length;
       for (let i = 0; i < total; i++) {
-        await new Promise(resolve => setTimeout(resolve, 350));
         const cupToConnect = cups[i];
         if (!cupToConnect) {
           continue;
         }
-        setCups(prevCups => 
-          prevCups.map(cup => 
-            cup.id === cupToConnect.id ? { ...cup, isConnected: true } : cup
-          )
-        );
+        await connectToCup(cupToConnect.id);
         setConnectProgress(Math.round(((i + 1) / total) * 100));
       }
     } catch (e) {
@@ -449,37 +413,73 @@ export const MultiCupControlScreen: React.FC<MultiCupControlScreenProps> = ({ na
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
   };
 
-  const handleDisconnectAll = () => {
-    setCups(prevCups => 
-      prevCups.map(cup => ({ ...cup, isConnected: false }))
-    );
+  const handleDisconnectAll = async () => {
+    for (const cup of cups) {
+      await disconnectFromCup(cup.id);
+    }
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
   };
 
-  const handleBulkConnect = () => {
+  const handleBulkConnect = async () => {
     const selectedIds = Array.from(selectedCupIds);
-    setCups(prevCups => 
-      prevCups.map(cup => 
-        selectedIds.includes(cup.id) 
-          ? { ...cup, isConnected: true }
-          : cup
-      )
-    );
+    for (const id of selectedIds) {
+      await connectToCup(id);
+    }
     setSelectedCupIds(new Set());
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
   };
 
-  const handleBulkDisconnect = () => {
+  const handleBulkDisconnect = async () => {
     const selectedIds = Array.from(selectedCupIds);
-    setCups(prevCups => 
-      prevCups.map(cup => 
-        selectedIds.includes(cup.id) 
-          ? { ...cup, isConnected: false }
-          : cup
-      )
-    );
+    for (const id of selectedIds) {
+      await disconnectFromCup(id);
+    }
     setSelectedCupIds(new Set());
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+  };
+
+  const handleDelete = (cupId: string) => {
+    Alert.alert(
+      'Remove Cup',
+      'Are you sure you want to remove this cup?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Remove',
+          style: 'destructive',
+          onPress: () => {
+            removeCup(cupId);
+            setSelectedCupIds(prev => {
+              const next = new Set(prev);
+              next.delete(cupId);
+              return next;
+            });
+            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+          },
+        },
+      ]
+    );
+  };
+
+  const handleBulkDelete = () => {
+    const selectedIds = Array.from(selectedCupIds);
+    if (selectedIds.length === 0) return;
+    Alert.alert(
+      'Remove Selected Cups',
+      `Remove ${selectedIds.length} selected cup${selectedIds.length !== 1 ? 's' : ''}?`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Remove',
+          style: 'destructive',
+          onPress: () => {
+            selectedIds.forEach(id => removeCup(id));
+            setSelectedCupIds(new Set());
+            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+          },
+        },
+      ]
+    );
   };
 
   const renderCupCard = ({ item }: { item: Cup }) => (
@@ -487,6 +487,7 @@ export const MultiCupControlScreen: React.FC<MultiCupControlScreenProps> = ({ na
       cup={item}
       onPress={() => handleCupPress(item)}
       onRename={() => handleRename(item)}
+      onDelete={() => handleDelete(item.id)}
       onConnect={() => handleConnect(item.id)}
       onDisconnect={() => handleDisconnect(item.id)}
       onSelect={() => handleCupSelect(item.id)}
@@ -516,6 +517,19 @@ export const MultiCupControlScreen: React.FC<MultiCupControlScreenProps> = ({ na
           >
             {/* Header */}
             <View style={styles.header}>
+              <TouchableOpacity
+                style={styles.headerAddButton}
+                onPress={() => {
+                  if (cups.length >= 18) {
+                    Alert.alert('Maximum Reached', 'You can have up to 18 cups.');
+                    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+                    return;
+                  }
+                  setShowAddOptions(true);
+                }}
+              >
+                <Ionicons name="add" size={20} color={colors.text.primary} />
+              </TouchableOpacity>
               <Text style={styles.title}>Multi-Cup Control</Text>
               <Text style={styles.subtitle}>
                 {connectedCups.length} of {cups.length} cups connected
@@ -626,6 +640,14 @@ export const MultiCupControlScreen: React.FC<MultiCupControlScreenProps> = ({ na
                       <Ionicons name="close-circle" size={14} color={colors.text.primary} />
                       <Text style={styles.selectedActionButtonText}>Disconnect</Text>
                     </TouchableOpacity>
+
+                    <TouchableOpacity
+                      style={[styles.selectedActionButton, styles.selectedDeleteButton]}
+                      onPress={handleBulkDelete}
+                    >
+                      <Ionicons name="trash" size={14} color={colors.text.primary} />
+                      <Text style={styles.selectedActionButtonText}>Delete</Text>
+                    </TouchableOpacity>
                   </View>
                 </View>
               )}
@@ -714,6 +736,21 @@ export const MultiCupControlScreen: React.FC<MultiCupControlScreenProps> = ({ na
           </View>
         </Modal>
       </LinearGradient>
+      {/* Add Device Options */}
+      <AddCupOptionsModal
+        visible={showAddOptions}
+        onClose={() => setShowAddOptions(false)}
+        onScanQr={() => {
+          setShowAddOptions(false);
+          navigation.navigate('QrScan');
+        }}
+        onBluetoothScan={() => {
+          setShowAddOptions(false);
+          setShowBleModal(true);
+        }}
+      />
+      {/* BLE Scan Modal */}
+      <BleScanModal visible={showBleModal} onClose={() => setShowBleModal(false)} />
     </SafeAreaView>
   );
 };
@@ -753,6 +790,18 @@ const styles = StyleSheet.create({
     color: colors.text.secondary,
     textAlign: 'center',
     fontWeight: '500',
+  },
+  headerAddButton: {
+    position: 'absolute',
+    right: 16,
+    top: 0,
+    transform: [{ translateY: -6 }],
+    backgroundColor: colors.background.secondary,
+    borderWidth: 1,
+    borderColor: colors.border.secondary,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    borderRadius: 12,
   },
   statsContainer: {
     flexDirection: 'row',
@@ -871,6 +920,14 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   renameButton: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: colors.background.secondary,
+  },
+  deleteButton: {
     width: 24,
     height: 24,
     borderRadius: 12,
@@ -1054,6 +1111,11 @@ const styles = StyleSheet.create({
     backgroundColor: colors.neon.purple + '20',
     borderWidth: 1,
     borderColor: colors.neon.purple + '40',
+  },
+  selectedDeleteButton: {
+    backgroundColor: colors.status.error + '20',
+    borderWidth: 1,
+    borderColor: colors.status.error + '40',
   },
   selectedActionButtonText: {
     fontSize: 11,

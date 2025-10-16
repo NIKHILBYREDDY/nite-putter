@@ -1,11 +1,10 @@
-import React, { useState, useEffect, useRef } from 'react';
+﻿import React, { useEffect, useRef, useState } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   SafeAreaView,
   TouchableOpacity,
-  Alert,
   Animated,
   Dimensions,
 } from 'react-native';
@@ -14,42 +13,44 @@ import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 
 import { ColorWheel } from '../../components/ui/ColorWheel';
-import { Button } from '../../components/ui/Button';
 import { colors } from '../../lib/theme';
 import { useNiteControlStore } from '../../store/niteControlStore';
 import { ColorWheelScreenProps } from '../../types/navigation';
 
 const { width } = Dimensions.get('window');
 
-export const ColorWheelScreen: React.FC<ColorWheelScreenProps> = ({ 
-  navigation, 
-  route 
-}) => {
+type TabKey = 'color' | 'temperature' | 'swatch';
+
+export const ColorWheelScreen: React.FC<ColorWheelScreenProps> = ({ navigation, route }) => {
   const { cupId, cupName, currentColor } = route.params || ({} as any);
-  const { setCupColor } = useNiteControlStore();
-  
+  const { cups, setCupColor, setCupBrightness } = useNiteControlStore();
+
   const initialColor = (typeof currentColor === 'string' && currentColor.startsWith('#') && (currentColor.length === 7 || currentColor.length === 9))
     ? currentColor
     : '#00FF88';
+  const cup = cups.find(c => c.id === cupId);
+  const initialBrightness = typeof cup?.brightness === 'number' ? cup!.brightness : 22;
+
   const [selectedColor, setSelectedColor] = useState(initialColor);
+  const [brightness, setBrightness] = useState(initialBrightness);
+  const [activeTab, setActiveTab] = useState<TabKey>('color');
   const [isApplying, setIsApplying] = useState(false);
-  
-  // Animation values
+
+  // Animations
   const fadeAnimRef = useRef(new Animated.Value(0));
-  const slideAnimRef = useRef(new Animated.Value(50));
+  const slideAnimRef = useRef(new Animated.Value(40));
   const colorPreviewScaleRef = useRef(new Animated.Value(1));
 
   useEffect(() => {
-    // Entrance animation
     Animated.parallel([
       Animated.timing(fadeAnimRef.current, {
         toValue: 1,
-        duration: 600,
+        duration: 450,
         useNativeDriver: true,
       }),
       Animated.timing(slideAnimRef.current, {
         toValue: 0,
-        duration: 600,
+        duration: 450,
         useNativeDriver: true,
       }),
     ]).start();
@@ -57,54 +58,36 @@ export const ColorWheelScreen: React.FC<ColorWheelScreenProps> = ({
 
   const handleColorChange = (color: string) => {
     setSelectedColor(color);
-    
-    // Animate color preview
     Animated.sequence([
-      Animated.timing(colorPreviewScaleRef.current, {
-        toValue: 1.1,
-        duration: 100,
-        useNativeDriver: true,
-      }),
-      Animated.timing(colorPreviewScaleRef.current, {
-        toValue: 1,
-        duration: 100,
-        useNativeDriver: true,
-      }),
+      Animated.timing(colorPreviewScaleRef.current, { toValue: 1.06, duration: 90, useNativeDriver: true }),
+      Animated.timing(colorPreviewScaleRef.current, { toValue: 1, duration: 90, useNativeDriver: true }),
     ]).start();
-    
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
   };
 
-  const handleApplyColor = async () => {
+  // Brightness slider drag handling
+  const [trackWidth, setTrackWidth] = useState<number>(0);
+  const updateBrightnessByX = (x: number) => {
+    if (trackWidth <= 0) return;
+    const ratio = Math.max(0, Math.min(1, x / trackWidth));
+    const next = Math.round(ratio * 100);
+    setBrightness(next);
+  };
+
+  const handleConfirm = async () => {
     try {
       setIsApplying(true);
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-      
-      // Simulate applying color to cup
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
-      setCupColor(cupId, selectedColor);
-      
-      Alert.alert(
-        'Color Applied!',
-        `${cupName} has been updated to the new color.`,
-        [
-          {
-            text: 'OK',
-            onPress: () => navigation.goBack(),
-          },
-        ]
-      );
-    } catch (error) {
-      Alert.alert('Error', 'Failed to apply color. Please try again.');
+      await Promise.all([
+        setCupColor(cupId, selectedColor),
+        setCupBrightness(cupId, brightness),
+      ]);
+      navigation.goBack();
+    } catch (e) {
+      // Swallow and continue — mock environment
     } finally {
       setIsApplying(false);
     }
-  };
-
-  const handleBack = () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    navigation.goBack();
   };
 
   const presetColors = [
@@ -112,286 +95,171 @@ export const ColorWheelScreen: React.FC<ColorWheelScreenProps> = ({
     colors.neon.blue,
     colors.neon.purple,
     colors.neon.pink,
-    colors.neon.yellow,
     colors.neon.orange,
-    '#FF0080', // Hot pink
-    '#00FFFF', // Cyan
   ];
-
-  const handlePresetColor = (color: string) => {
-    handleColorChange(color);
-  };
 
   return (
     <SafeAreaView style={styles.container}>
-      <LinearGradient
-        colors={[colors.background.primary, colors.background.secondary]}
-        style={styles.gradient}
-      >
+      <LinearGradient colors={[colors.background.primary, colors.background.secondary]} style={styles.gradient}>
         {/* Header */}
-        <Animated.View 
-          style={[
-            styles.header,
-            {
-              opacity: fadeAnimRef.current,
-              transform: [{ translateY: slideAnimRef.current }],
-            },
-          ]}
-        >
-          <TouchableOpacity 
-            style={styles.backButton}
-            onPress={handleBack}
-            activeOpacity={0.7}
-          >
-            <Ionicons 
-              name="chevron-back" 
-              size={28} 
-              color={colors.neon.blue} 
-            />
+        <Animated.View style={[styles.header, { opacity: fadeAnimRef.current, transform: [{ translateY: slideAnimRef.current }] }] }>
+          <TouchableOpacity style={styles.headerIcon} onPress={() => navigation.goBack()} activeOpacity={0.8}>
+            <Ionicons name="close" size={20} color={colors.text.primary} />
           </TouchableOpacity>
-          
-          <View style={styles.headerContent}>
-            <Text style={styles.title}>Customize Color</Text>
-            <Text style={styles.subtitle}>{cupName}</Text>
-          </View>
-          
-          <View style={styles.headerRight} />
+          <Text style={styles.headerTitle}>Light Color</Text>
+          <TouchableOpacity style={[styles.headerIcon, styles.confirmIcon]} onPress={handleConfirm} disabled={isApplying} activeOpacity={0.8}>
+            <Ionicons name="checkmark" size={20} color={colors.text.primary} />
+          </TouchableOpacity>
         </Animated.View>
 
-        {/* Color Preview */}
-        <Animated.View 
-          style={[
-            styles.colorPreviewContainer,
-            {
-              opacity: fadeAnimRef.current,
-              transform: [
-                { translateY: slideAnimRef.current },
-                { scale: colorPreviewScaleRef.current },
-              ],
-            },
-          ]}
-        >
-          <View style={styles.colorPreviewWrapper}>
-            <LinearGradient
-              colors={[selectedColor, selectedColor + '80']}
-              style={styles.colorPreview}
-            >
-              <View style={[styles.colorPreviewInner, { backgroundColor: selectedColor }]} />
-            </LinearGradient>
-            <Text style={styles.colorValue}>{selectedColor.toUpperCase()}</Text>
-          </View>
-        </Animated.View>
-
-        {/* Color Wheel */}
-        <Animated.View 
-          style={[
-            styles.colorWheelContainer,
-            {
-              opacity: fadeAnimRef.current,
-              transform: [{ translateY: slideAnimRef.current }],
-            },
-          ]}
-        >
-          <ColorWheel
-            size={width * 0.8}
-            onColorChange={handleColorChange}
-            initialColor={selectedColor}
-          />
-        </Animated.View>
-
-        {/* Preset Colors */}
-        <Animated.View 
-          style={[
-            styles.presetsContainer,
-            {
-              opacity: fadeAnimRef.current,
-              transform: [{ translateY: slideAnimRef.current }],
-            },
-          ]}
-        >
-          <Text style={styles.presetsTitle}>Quick Colors</Text>
-          <View style={styles.presetsGrid}>
-            {presetColors.map((color, index) => (
+        {/* Tabs */}
+        <View style={styles.tabsOuter}>
+          <View style={styles.tabsInner}>
+            {(['color','temperature','swatch'] as TabKey[]).map(key => (
               <TouchableOpacity
-                key={index}
-                style={[
-                  styles.presetColor,
-                  { backgroundColor: color },
-                  selectedColor === color && styles.presetColorSelected,
-                ]}
-                onPress={() => handlePresetColor(color)}
-                activeOpacity={0.7}
+                key={key}
+                style={[styles.tabButton, activeTab === key && styles.tabButtonActive]}
+                onPress={() => setActiveTab(key)}
+                activeOpacity={0.85}
               >
-                {selectedColor === color && (
-                  <Ionicons 
-                    name="checkmark" 
-                    size={16} 
-                    color={colors.text.primary} 
-                  />
-                )}
+                <Text style={[styles.tabText, activeTab === key && styles.tabTextActive]}>
+                  {key === 'color' ? 'Color' : key === 'temperature' ? 'Temperature' : 'Swatch'}
+                </Text>
               </TouchableOpacity>
             ))}
           </View>
-        </Animated.View>
+        </View>
 
-        {/* Apply Button */}
-        <Animated.View 
-          style={[
-            styles.buttonContainer,
-            {
-              opacity: fadeAnimRef.current,
-              transform: [{ translateY: slideAnimRef.current }],
-            },
-          ]}
-        >
-          <Button
-            title={isApplying ? "Applying..." : "Apply Color"}
-            onPress={handleApplyColor}
-            disabled={isApplying || selectedColor === currentColor}
-            style={selectedColor === currentColor ? 
-              {...styles.applyButton, ...styles.applyButtonDisabled} : 
-              styles.applyButton
-            }
-            loading={isApplying}
-          />
-        </Animated.View>
+        {/* Color Wheel Card */}
+        {activeTab === 'color' && (
+          <Animated.View style={[styles.card, styles.wheelCard, { opacity: fadeAnimRef.current, transform: [{ translateY: slideAnimRef.current }] }] }>
+            <ColorWheel size={Math.min(width * 0.82, 320)} onColorChange={handleColorChange} initialColor={selectedColor} />
+          </Animated.View>
+        )}
+
+        {/* Brightness Card */}
+        <View style={[styles.card, styles.brightnessCard]}> 
+          <Text style={styles.brightnessLabel}>BRIGHTNESS</Text>
+          <View style={styles.brightnessRow}>
+            <View
+              style={styles.sliderTrack}
+              onLayout={(e) => setTrackWidth(e.nativeEvent.layout.width)}
+              onStartShouldSetResponder={() => true}
+              onResponderMove={(e) => updateBrightnessByX(e.nativeEvent.locationX)}
+              onResponderRelease={(e) => updateBrightnessByX(e.nativeEvent.locationX)}
+            >
+              <View style={[styles.sliderFill, { width: `${brightness}%` }]} />
+              <View style={[styles.sliderThumb, { left: `${Math.max(0, Math.min(100, brightness))}%` }]} />
+            </View>
+            <View style={styles.brightnessValueBox}>
+              <Text style={styles.brightnessValueText}>{brightness}%</Text>
+            </View>
+          </View>
+
+          {/* Presets Row */}
+          <View style={styles.presetsRow}>
+            <View style={[styles.bigSwatch, { backgroundColor: selectedColor }]}> 
+              <LinearGradient colors={[selectedColor + '00', selectedColor + '60']} style={styles.bigSwatchOverlay} />
+            </View>
+            <View style={styles.smallSwatchesRow}>
+              {presetColors.map((c, idx) => (
+                <TouchableOpacity key={idx} style={[styles.smallSwatch, { backgroundColor: c }]} onPress={() => handleColorChange(c)} />
+              ))}
+              <TouchableOpacity style={[styles.smallSwatch, styles.addSwatch]} onPress={() => handleColorChange('#FFFFFF')} activeOpacity={0.85}>
+                <Ionicons name="add" size={16} color={colors.text.primary} />
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
       </LinearGradient>
     </SafeAreaView>
   );
 };
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: colors.background.primary,
-  },
-  gradient: {
-    flex: 1,
-  },
+  container: { flex: 1, backgroundColor: colors.background.primary },
+  gradient: { flex: 1 },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 20,
-    paddingVertical: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border.primary,
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
   },
-  backButton: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
+  headerIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
     backgroundColor: colors.background.tertiary,
+    borderWidth: 1,
+    borderColor: colors.border.secondary,
+    alignItems: 'center',
     justifyContent: 'center',
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: colors.border.secondary,
   },
-  headerContent: {
-    flex: 1,
-    alignItems: 'center',
-  },
-  headerRight: {
-    width: 44,
-  },
-  title: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: colors.text.primary,
-    marginBottom: 4,
-  },
-  subtitle: {
-    fontSize: 14,
-    color: colors.text.secondary,
-    fontWeight: '500',
-  },
-  colorPreviewContainer: {
-    alignItems: 'center',
-    paddingVertical: 32,
-  },
-  colorPreviewWrapper: {
-    alignItems: 'center',
-  },
-  colorPreview: {
-    width: 120,
-    height: 120,
-    borderRadius: 60,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 16,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.3,
-    shadowRadius: 16,
-    elevation: 8,
-  },
-  colorPreviewInner: {
-    width: 100,
-    height: 100,
-    borderRadius: 50,
-    borderWidth: 3,
-    borderColor: colors.text.primary,
-  },
-  colorValue: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: colors.text.secondary,
-    fontFamily: 'monospace',
-  },
-  colorWheelContainer: {
+  confirmIcon: { backgroundColor: colors.neon.orange + '20' },
+  headerTitle: { color: colors.text.primary, fontWeight: '700', fontSize: 18 },
+
+  tabsOuter: { paddingHorizontal: 16, marginBottom: 10 },
+  tabsInner: {
     backgroundColor: colors.background.tertiary,
-    borderRadius: 20,
-    padding: 24,
-    marginBottom: 24,
-    borderWidth: 1,
-    borderColor: colors.border.secondary,
-    alignItems: 'center',
-  },
-  presetsContainer: {
-    backgroundColor: colors.background.tertiary,
-    borderRadius: 16,
-    padding: 20,
-    marginBottom: 24,
-    borderWidth: 1,
-    borderColor: colors.border.secondary,
-  },
-  presetsTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: colors.text.primary,
-    marginBottom: 16,
-    textAlign: 'center',
-  },
-  presetsGrid: {
+    borderRadius: 18,
+    padding: 4,
     flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'center',
-    gap: 12,
+    gap: 6,
+    borderWidth: 1,
+    borderColor: colors.border.secondary,
   },
-  presetColor: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    justifyContent: 'center',
+  tabButton: {
+    flex: 1,
+    paddingVertical: 8,
+    borderRadius: 14,
     alignItems: 'center',
-    borderWidth: 2,
-    borderColor: 'transparent',
+    backgroundColor: 'transparent',
   },
-  presetColorSelected: {
-    borderColor: colors.text.primary,
-    borderWidth: 3,
-  },
-  buttonContainer: {
-    paddingHorizontal: 20,
-    paddingBottom: 32,
-    paddingTop: 20,
-  },
-  applyButton: {
-    backgroundColor: colors.neon.blue,
-    borderRadius: 16,
-    paddingVertical: 16,
-  },
-  applyButtonDisabled: {
+  tabButtonActive: { backgroundColor: colors.background.secondary },
+  tabText: { color: colors.text.secondary, fontWeight: '600' },
+  tabTextActive: { color: colors.text.primary },
+
+  card: {
     backgroundColor: colors.background.tertiary,
-    opacity: 0.5,
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: colors.border.secondary,
+    marginHorizontal: 16,
+    marginBottom: 12,
+    padding: 16,
   },
+  wheelCard: { alignItems: 'center' },
+
+  brightnessCard: {},
+  brightnessLabel: { color: colors.text.secondary, fontSize: 12, fontWeight: '700', marginBottom: 12 },
+  brightnessRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  sliderTrack: { flex: 1, height: 18, borderRadius: 9, backgroundColor: '#2A2A2A', overflow: 'hidden' },
+  sliderFill: { height: '100%', backgroundColor: '#3F3F3F' },
+  sliderThumb: {
+    position: 'absolute',
+    top: -4,
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    backgroundColor: colors.background.secondary,
+    borderWidth: 1,
+    borderColor: colors.border.secondary,
+  },
+  brightnessValueBox: {
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 10,
+    backgroundColor: colors.background.secondary,
+    borderWidth: 1,
+    borderColor: colors.border.secondary,
+  },
+  brightnessValueText: { color: colors.text.primary, fontWeight: '600' },
+
+  presetsRow: { flexDirection: 'row', alignItems: 'center', marginTop: 16, gap: 12 },
+  bigSwatch: { width: 64, height: 64, borderRadius: 12, overflow: 'hidden', borderWidth: 1, borderColor: colors.border.secondary },
+  bigSwatchOverlay: { flex: 1 },
+  smallSwatchesRow: { flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1 },
+  smallSwatch: { width: 28, height: 28, borderRadius: 14, borderWidth: 1, borderColor: colors.border.secondary },
+  addSwatch: { alignItems: 'center', justifyContent: 'center', backgroundColor: colors.background.secondary },
 });

@@ -16,6 +16,8 @@ import { theme } from '../../lib/theme';
 import { useNiteControlStore } from '../../store/niteControlStore';
 import { Switch, ColorWheel } from '../../components/ui';
 import { NiteControlScreenProps } from '../../types/navigation';
+import { AddCupOptionsModal } from '../../components/ui/AddCupOptionsModal';
+import { BleScanModal } from './BleScanModal';
 
 const { width } = Dimensions.get('window');
 
@@ -56,6 +58,8 @@ export const NiteControlScreen: React.FC<NiteControlScreenProps> = ({ navigation
   const [isAmbientMode, setIsAmbientMode] = useState(false);
   const [ambientSpeed, _setAmbientSpeed] = useState(50);
   const [scrollEnabled, setScrollEnabled] = useState(true);
+  const [showAddOptions, setShowAddOptions] = useState(false);
+  const [showBleModal, setShowBleModal] = useState(false);
 
   useEffect(() => {
     Animated.parallel([
@@ -392,13 +396,21 @@ export const NiteControlScreen: React.FC<NiteControlScreenProps> = ({ navigation
                   <Text style={styles.title}>Nite Control</Text>
                   <Text style={styles.subtitle}>Control your smart golf cup</Text>
                 </View>
-                <TouchableOpacity
-                  style={styles.multiCupButton}
-                  onPress={() => navigation.navigate('MultiCupControl')}
-                >
-                  <Ionicons name="grid-outline" size={24} color={theme.colors.text.primary} />
-                  <Text style={styles.multiCupButtonText}>Multi-Cup</Text>
-                </TouchableOpacity>
+                <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                  <TouchableOpacity
+                    style={styles.multiCupButton}
+                    onPress={() => navigation.navigate('MultiCupControl')}
+                  >
+                    <Ionicons name="grid-outline" size={24} color={theme.colors.text.primary} />
+                    <Text style={styles.multiCupButtonText}>Multi-Cup</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={styles.addButton}
+                    onPress={() => setShowAddOptions(true)}
+                  >
+                    <Ionicons name="add" size={20} color={theme.colors.text.primary} />
+                  </TouchableOpacity>
+                </View>
               </View>
             </View>
 
@@ -438,6 +450,21 @@ export const NiteControlScreen: React.FC<NiteControlScreenProps> = ({ navigation
           </Animated.View>
         </ScrollView>
       </LinearGradient>
+      {/* Add Device Options */}
+      <AddCupOptionsModal
+        visible={showAddOptions}
+        onClose={() => setShowAddOptions(false)}
+        onScanQr={() => {
+          setShowAddOptions(false);
+          navigation.navigate('QrScan');
+        }}
+        onBluetoothScan={() => {
+          setShowAddOptions(false);
+          setShowBleModal(true);
+        }}
+      />
+      {/* BLE Scan Modal */}
+      <BleScanModal visible={showBleModal} onClose={() => setShowBleModal(false)} />
     </SafeAreaView>
   );
 };
@@ -481,6 +508,15 @@ const styles = {
     fontWeight: theme.typography.fontWeight.medium,
     color: theme.colors.text.primary,
     marginLeft: theme.spacing[1],
+  },
+  addButton: {
+    marginLeft: theme.spacing[2],
+    backgroundColor: theme.colors.background.secondary,
+    paddingHorizontal: theme.spacing[2],
+    paddingVertical: theme.spacing[2],
+    borderRadius: theme.borderRadius.lg,
+    borderWidth: 1,
+    borderColor: theme.colors.border.primary,
   },
   title: {
     fontSize: theme.typography.fontSize['3xl'],

@@ -11,6 +11,7 @@ import { CheckoutScreen } from '../features/shop/CheckoutScreen';
 import { NiteControlScreen } from '../features/niteControl/NiteControlScreen';
 import { MultiCupControlScreen } from '../features/niteControl/MultiCupControlScreen';
 import { ColorWheelScreen } from '../features/niteControl/ColorWheelScreen';
+import QrScanScreen from '../features/niteControl/QrScanScreen';
 import { ProfileScreen } from '../features/profile/ProfileScreen';
 import { ReferralsScreen } from '../features/profile/ReferralsScreen';
 import { SettingsScreen } from '../features/settings/SettingsScreen';
@@ -98,6 +99,11 @@ const NiteControlStackComponent = () => {
       <NiteControlStack.Screen 
         name="ColorWheel" 
         component={ColorWheelScreen} 
+        options={{ headerShown: false }}
+      />
+      <NiteControlStack.Screen 
+        name="QrScan" 
+        component={QrScanScreen} 
         options={{ headerShown: false }}
       />
     </NiteControlStack.Navigator>
