@@ -31,7 +31,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
   const slideAnim = useRef(new Animated.Value(30)).current;
 
   useEffect(() => {
-    // Entrance animation
+    // Entrance animation (header/footer only)
     Animated.parallel([
       Animated.timing(fadeAnim, {
         toValue: 1,
@@ -115,37 +115,36 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
           theme.colors.background.secondary,
         ]}
         style={styles.backgroundGradient}
+        pointerEvents="none"
       />
 
       {/* Enhanced Night Sky Background */}
       <StarsBackground 
         starCount={70} 
-        animated={true} 
+        animated={false} 
         showClouds={true} 
         showNebula={true} 
-        dynamicMotion={true} 
+        dynamicMotion={false} 
       />
 
       <SafeAreaView style={styles.safeArea}>
         <KeyboardAvoidingView
           style={styles.keyboardAvoid}
-          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          // Use padding on both platforms to avoid height thrash/flicker
+          behavior={'padding'}
+          keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
         >
           <ScrollView
             style={styles.scrollView}
             contentContainerStyle={styles.scrollContent}
             showsVerticalScrollIndicator={false}
+            // Keep taps and focus stable while typing
+            keyboardShouldPersistTaps="always"
+            // Prevent Android clipping issues that can cause flicker
+            removeClippedSubviews={false}
           >
             {/* Header */}
-            <Animated.View
-              style={[
-                styles.header,
-                {
-                  opacity: fadeAnim,
-                  transform: [{ translateY: slideAnim }],
-                },
-              ]}
-            >
+            <View style={styles.header}>
               <TouchableOpacity onPress={handleBack} style={styles.backButton}>
                 <Body style={styles.backText}>← Back</Body>
               </TouchableOpacity>
@@ -156,18 +155,10 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
                   Sign in to control your Nite Putter experience
                 </Body>
               </View>
-            </Animated.View>
+            </View>
 
-            {/* Form */}
-            <Animated.View
-              style={[
-                styles.form,
-                {
-                  opacity: fadeAnim,
-                  transform: [{ translateY: slideAnim }],
-                },
-              ]}
-            >
+            {/* Form (no transforms applied to avoid TextInput flicker) */}
+            <View collapsable={false} style={styles.form}>
               <Input
                 label="Email"
                 placeholder="Enter your email"
@@ -221,25 +212,17 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
                   Password: password123
                 </BodySmall>
               </View>
-            </Animated.View>
+            </View>
 
             {/* Footer */}
-            <Animated.View
-              style={[
-                styles.footer,
-                {
-                  opacity: fadeAnim,
-                  transform: [{ translateY: slideAnim }],
-                },
-              ]}
-            >
+            <View style={styles.footer}>
               <View style={styles.signupPrompt}>
                 <Body style={styles.signupText}>Don't have an account? </Body>
                 <TouchableOpacity onPress={handleSignUp}>
                   <Body style={styles.signupLink}>Sign up</Body>
                 </TouchableOpacity>
               </View>
-            </Animated.View>
+            </View>
           </ScrollView>
         </KeyboardAvoidingView>
       </SafeAreaView>

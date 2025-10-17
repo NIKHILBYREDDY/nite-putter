@@ -288,7 +288,7 @@ export const StarsBackground: React.FC<StarsBackgroundProps> = ({
   );
 
   return (
-    <View style={[styles.container, style]}>
+    <View pointerEvents="none" style={[styles.container, style]}>
       {showNebula && renderNebula()}
       {showClouds && cloudsRef.current.map(renderCloud)}
       {starsRef.current.map(renderStar)}
@@ -375,7 +375,7 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 0 },
     shadowOpacity: 0.8,
     shadowRadius: 2,
-    elevation: 5,
+    // removed elevation to avoid overlaying interactive content
   },
   brightStar: {
     position: 'absolute',
@@ -384,7 +384,7 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 0 },
     shadowOpacity: 1,
     shadowRadius: 4,
-    elevation: 8,
+    // removed elevation to avoid overlaying interactive content
   },
   nebula1: {
     position: 'absolute',
@@ -430,6 +430,6 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 0 },
     shadowOpacity: 1,
     shadowRadius: 3,
-    elevation: 10,
+    // removed elevation to avoid overlaying interactive content
   },
 });

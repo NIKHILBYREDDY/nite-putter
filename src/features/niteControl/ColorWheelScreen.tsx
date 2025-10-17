@@ -1,4 +1,4 @@
-﻿﻿import React, { useEffect, useRef, useState } from 'react';
+﻿import React, { useEffect, useRef, useState } from 'react';
 import {
   View,
   Text,
@@ -16,13 +16,14 @@ import { ColorWheel } from '../../components/ui/ColorWheel';
 import { colors } from '../../lib/theme';
 import { useNiteControlStore } from '../../store/niteControlStore';
 import { ColorWheelScreenProps } from '../../types/navigation';
+import { kelvinToHex, clamp } from '../../lib/colorUtils';
 
 const { width } = Dimensions.get('window');
 
 type TabKey = 'color' | 'temperature' | 'swatch';
 
 export const ColorWheelScreen: React.FC<ColorWheelScreenProps> = ({ navigation, route }) => {
-  const { cupId, cupName, currentColor } = route.params || ({} as any);
+  const { cupId, currentColor } = route.params || ({} as any);
   const { cups, setCupColor, setCupBrightness } = useNiteControlStore();
 
   const initialColor = (typeof currentColor === 'string' && currentColor.startsWith('#') && (currentColor.length === 7 || currentColor.length === 9))
@@ -35,6 +36,7 @@ export const ColorWheelScreen: React.FC<ColorWheelScreenProps> = ({ navigation, 
   const [brightness, setBrightness] = useState(initialBrightness);
   const [activeTab, setActiveTab] = useState<TabKey>('color');
   const [isApplying, setIsApplying] = useState(false);
+  const [kelvin, setKelvin] = useState<number>(4000);
 
   // Animations
   const fadeAnimRef = useRef(new Animated.Value(0));
@@ -72,6 +74,22 @@ export const ColorWheelScreen: React.FC<ColorWheelScreenProps> = ({ navigation, 
     const ratio = Math.max(0, Math.min(1, x / trackWidth));
     const next = Math.round(ratio * 100);
     setBrightness(next);
+  };
+
+  // Temperature (Kelvin) slider drag handling
+  const [tempTrackWidth, setTempTrackWidth] = useState<number>(0);
+  const updateKelvinByX = (x: number) => {
+    if (tempTrackWidth <= 0) return;
+    const ratio = clamp(x / tempTrackWidth, 0, 1);
+    const nextKelvin = Math.round(1000 + ratio * (6500 - 1000));
+    setKelvin(nextKelvin);
+    const nextColor = kelvinToHex(nextKelvin);
+    setSelectedColor(nextColor);
+    Animated.sequence([
+      Animated.timing(colorPreviewScaleRef.current, { toValue: 1.05, duration: 80, useNativeDriver: true }),
+      Animated.timing(colorPreviewScaleRef.current, { toValue: 1, duration: 80, useNativeDriver: true }),
+    ]).start();
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
   };
 
   const handleConfirm = async () => {
@@ -137,6 +155,69 @@ export const ColorWheelScreen: React.FC<ColorWheelScreenProps> = ({ navigation, 
           </Animated.View>
         )}
 
+        {/* Temperature Card */}
+        {activeTab === 'temperature' && (
+          <Animated.View style={[styles.card, { opacity: fadeAnimRef.current, transform: [{ translateY: slideAnimRef.current }] }] }>
+            <Text style={styles.brightnessLabel}>TEMPERATURE</Text>
+            <View style={styles.brightnessRow}>
+              <View
+                style={styles.tempSliderTrack}
+                onLayout={(e) => setTempTrackWidth(e.nativeEvent.layout.width)}
+                onStartShouldSetResponder={() => true}
+                onResponderMove={(e) => updateKelvinByX(e.nativeEvent.locationX)}
+                onResponderRelease={(e) => updateKelvinByX(e.nativeEvent.locationX)}
+              >
+                <LinearGradient
+                  colors={["#FFB56B", "#FFFFFF", "#8CB4FF"]}
+                  start={{ x: 0, y: 0.5 }}
+                  end={{ x: 1, y: 0.5 }}
+                  style={styles.tempSliderFill}
+                />
+                <View
+                  style={[
+                    styles.sliderThumb,
+                    {
+                      left:
+                        tempTrackWidth > 0
+                          ? Math.max(
+                              0,
+                              Math.min(
+                                tempTrackWidth - 26,
+                                Math.round(((kelvin - 1000) / (6500 - 1000)) * tempTrackWidth) - 13
+                              )
+                            )
+                          : 0,
+                    },
+                  ]}
+                />
+              </View>
+              <View style={styles.brightnessValueBox}>
+                <Text style={styles.brightnessValueText}>{kelvin}K</Text>
+              </View>
+            </View>
+
+            <View style={styles.presetsRow}>
+              <View style={[styles.bigSwatch, { backgroundColor: selectedColor }]}> 
+                <LinearGradient colors={[selectedColor + '00', selectedColor + '60']} style={styles.bigSwatchOverlay} />
+              </View>
+              <View style={styles.smallSwatchesRow}>
+                {[1500, 2700, 3500, 4500, 5500, 6500].map((k) => (
+                  <TouchableOpacity
+                    key={k}
+                    style={[styles.smallSwatch, { backgroundColor: kelvinToHex(k) }]}
+                    onPress={() => {
+                      setKelvin(k);
+                      const next = kelvinToHex(k);
+                      setSelectedColor(next);
+                      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                    }}
+                  />
+                ))}
+              </View>
+            </View>
+          </Animated.View>
+        )}
+
         {/* Brightness Card */}
         <View style={[styles.card, styles.brightnessCard]}> 
           <Text style={styles.brightnessLabel}>BRIGHTNESS</Text>
@@ -148,8 +229,26 @@ export const ColorWheelScreen: React.FC<ColorWheelScreenProps> = ({ navigation, 
               onResponderMove={(e) => updateBrightnessByX(e.nativeEvent.locationX)}
               onResponderRelease={(e) => updateBrightnessByX(e.nativeEvent.locationX)}
             >
-              <View style={[styles.sliderFill, { width: `${brightness}%` }]} />
-              <View style={[styles.sliderThumb, { left: `${Math.max(0, Math.min(100, brightness))}%` }]} />
+              <View
+                style={[
+                  styles.sliderFill,
+                  { width: trackWidth > 0 ? (brightness / 100) * trackWidth : 0 },
+                ]}
+              />
+              <View
+                style={[
+                  styles.sliderThumb,
+                  {
+                    left:
+                      trackWidth > 0
+                        ? Math.max(
+                            0,
+                            Math.min(trackWidth - 26, Math.round((brightness / 100) * trackWidth) - 13)
+                          )
+                        : 0,
+                  },
+                ]}
+              />
             </View>
             <View style={styles.brightnessValueBox}>
               <Text style={styles.brightnessValueText}>{brightness}%</Text>
@@ -205,7 +304,6 @@ const styles = StyleSheet.create({
     borderRadius: 18,
     padding: 4,
     flexDirection: 'row',
-    gap: 6,
     borderWidth: 1,
     borderColor: colors.border.secondary,
   },
@@ -233,9 +331,11 @@ const styles = StyleSheet.create({
 
   brightnessCard: {},
   brightnessLabel: { color: colors.text.secondary, fontSize: 12, fontWeight: '700', marginBottom: 12 },
-  brightnessRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  brightnessRow: { flexDirection: 'row', alignItems: 'center' },
   sliderTrack: { flex: 1, height: 18, borderRadius: 9, backgroundColor: '#2A2A2A', overflow: 'hidden' },
   sliderFill: { height: '100%', backgroundColor: '#3F3F3F' },
+  tempSliderTrack: { flex: 1, height: 18, borderRadius: 9, backgroundColor: '#2A2A2A', overflow: 'hidden', position: 'relative' },
+  tempSliderFill: { position: 'absolute', left: 0, right: 0, top: 0, bottom: 0 },
   sliderThumb: {
     position: 'absolute',
     top: -4,
@@ -256,10 +356,10 @@ const styles = StyleSheet.create({
   },
   brightnessValueText: { color: colors.text.primary, fontWeight: '600' },
 
-  presetsRow: { flexDirection: 'row', alignItems: 'center', marginTop: 16, gap: 12 },
+  presetsRow: { flexDirection: 'row', alignItems: 'center', marginTop: 16 },
   bigSwatch: { width: 64, height: 64, borderRadius: 12, overflow: 'hidden', borderWidth: 1, borderColor: colors.border.secondary },
   bigSwatchOverlay: { flex: 1 },
-  smallSwatchesRow: { flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1 },
-  smallSwatch: { width: 28, height: 28, borderRadius: 14, borderWidth: 1, borderColor: colors.border.secondary },
+  smallSwatchesRow: { flexDirection: 'row', alignItems: 'center', flex: 1 },
+  smallSwatch: { width: 28, height: 28, borderRadius: 14, borderWidth: 1, borderColor: colors.border.secondary, marginRight: 10 },
   addSwatch: { alignItems: 'center', justifyContent: 'center', backgroundColor: colors.background.secondary },
 });

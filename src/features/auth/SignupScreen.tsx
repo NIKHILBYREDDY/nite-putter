@@ -206,33 +206,27 @@ export const SignupScreen: React.FC<SignupScreenProps> = ({ navigation }) => {
       {/* Enhanced Night Sky Background */}
       <StarsBackground 
         starCount={70} 
-        animated={true} 
+        animated={false} 
         showClouds={true} 
         showNebula={true} 
-        dynamicMotion={true} 
+        dynamicMotion={false} 
       />
 
       <SafeAreaView style={styles.safeArea}>
         <KeyboardAvoidingView
           style={styles.keyboardAvoid}
-          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          behavior={'padding'}
           keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
         >
           <ScrollView
             style={styles.scrollView}
             contentContainerStyle={styles.scrollContent}
             showsVerticalScrollIndicator={false}
+            keyboardShouldPersistTaps="always"
+            removeClippedSubviews={false}
           >
             {/* Header */}
-            <Animated.View
-              style={[
-                styles.header,
-                {
-                  opacity: fadeAnim,
-                  transform: [{ translateY: slideAnim }],
-                },
-              ]}
-            >
+            <View style={styles.header}>
               <TouchableOpacity onPress={handleBack} style={styles.backButton}>
                 <Body style={styles.backText}>← Back</Body>
               </TouchableOpacity>
@@ -243,18 +237,10 @@ export const SignupScreen: React.FC<SignupScreenProps> = ({ navigation }) => {
                   Join the Nite Putter community and start your glow golf journey
                 </Body>
               </View>
-            </Animated.View>
+            </View>
 
-            {/* Form */}
-            <Animated.View
-              style={[
-                styles.form,
-                {
-                  opacity: fadeAnim,
-                  transform: [{ translateY: slideAnim }],
-                },
-              ]}
-            >
+            {/* Form (no transforms applied to avoid TextInput flicker) */}
+            <View collapsable={false} style={styles.form}>
               <View style={styles.nameRow}>
                 <Input
                   label="First Name"
@@ -357,25 +343,17 @@ export const SignupScreen: React.FC<SignupScreenProps> = ({ navigation }) => {
                 disabled={isLoading}
                 style={styles.signupButton}
               />
-            </Animated.View>
+            </View>
 
             {/* Footer */}
-            <Animated.View
-              style={[
-                styles.footer,
-                {
-                  opacity: fadeAnim,
-                  transform: [{ translateY: slideAnim }],
-                },
-              ]}
-            >
+            <View style={styles.footer}>
               <View style={styles.loginPrompt}>
                 <Body style={styles.loginText}>Already have an account? </Body>
                 <TouchableOpacity onPress={handleLogin}>
                   <Body style={styles.loginLink}>Sign in</Body>
                 </TouchableOpacity>
               </View>
-            </Animated.View>
+            </View>
           </ScrollView>
         </KeyboardAvoidingView>
       </SafeAreaView>

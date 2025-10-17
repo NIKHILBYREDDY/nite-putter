@@ -86,13 +86,7 @@ const InputComponent: React.FC<InputProps> = ({
       : theme.colors.border.primary,
     paddingHorizontal: theme.spacing[4],
     paddingVertical: theme.spacing[3],
-    ...(isFocused && !error && {
-      shadowColor: theme.colors.neon.green,
-      shadowOffset: { width: 0, height: 0 },
-      shadowOpacity: 0.3,
-      shadowRadius: 8,
-      elevation: 8,
-    }),
+    // Removed shadow and elevation on focus to prevent Android flicker
   }), [error, isFocused, multiline]);
 
   const textInputStyle: TextStyle = {
@@ -154,9 +148,10 @@ const InputComponent: React.FC<InputProps> = ({
           // Android-specific props to prevent input issues
           {...(Platform.OS === 'android' && {
             underlineColorAndroid: 'transparent',
-            textAlignVertical: multiline ? 'top' : 'center',
+            textAlignVertical: multiline ? 'top' : 'auto',
             blurOnSubmit: !multiline,
             returnKeyType: multiline ? 'default' : 'next',
+            disableFullscreenUI: true,
           })}
         />
         

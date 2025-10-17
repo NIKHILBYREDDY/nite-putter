@@ -1,6 +1,8 @@
-﻿﻿import { create } from 'zustand';
+﻿import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as Haptics from 'expo-haptics';
+import { maybePlayConfirm, play } from '../lib/sound';
 
 export interface Cup {
   id: string;
@@ -159,11 +161,15 @@ export const useNiteControlStore = create<NiteControlStore>()(
             isConnecting: false,
             error: null,
           }));
+          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+          play('connect');
         } catch (error) {
           set({
             isConnecting: false,
             error: 'Failed to connect to cup',
           });
+          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+          play('error');
         }
       },
 
@@ -279,8 +285,11 @@ export const useNiteControlStore = create<NiteControlStore>()(
               selectedCups.includes(cup.id) ? { ...cup, color } : cup
             ),
           }));
+          maybePlayConfirm();
         } catch (error) {
           set({ error: 'Failed to set color' });
+          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+          play('error');
         }
       },
 
@@ -294,8 +303,11 @@ export const useNiteControlStore = create<NiteControlStore>()(
               cup.id === cupId ? { ...cup, color } : cup
             ),
           }));
+          maybePlayConfirm();
         } catch (error) {
           set({ error: 'Failed to set cup color' });
+          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+          play('error');
         }
       },
 
@@ -330,23 +342,34 @@ export const useNiteControlStore = create<NiteControlStore>()(
               selectedCups.includes(cup.id) ? { ...cup, brightness } : cup
             ),
           }));
+          maybePlayConfirm();
         } catch (error) {
           set({ error: 'Failed to set brightness' });
+          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+          play('error');
         }
       },
 
       setCupBrightness: async (cupId: string, brightness: number) => {
         try {
-          // Mock BLE brightness update for specific cup - replace with real BLE later
-          await new Promise(resolve => setTimeout(resolve, 200));
-
-          set(state => ({
-            cups: state.cups.map(cup =>
-              cup.id === cupId ? { ...cup, brightness } : cup
-            ),
-          }));
+          // Smooth interpolation to reduce flicker
+          const current = get().cups.find(c => c.id === cupId)?.brightness ?? 0;
+          const steps = 8;
+          const duration = 240;
+          const stepDelay = Math.max(10, Math.floor(duration / steps));
+          const diff = brightness - current;
+          for (let i = 1; i <= steps; i++) {
+            const interim = Math.round(current + (diff * (i / steps)));
+            await new Promise(resolve => setTimeout(resolve, stepDelay));
+            set(state => ({
+              cups: state.cups.map(cup => cup.id === cupId ? { ...cup, brightness: interim } : cup),
+            }));
+          }
+          maybePlayConfirm();
         } catch (error) {
           set({ error: 'Failed to set cup brightness' });
+          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+          play('error');
         }
       },
 
