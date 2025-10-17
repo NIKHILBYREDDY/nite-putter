@@ -8,6 +8,7 @@ import { useNiteControlStore } from '../../store/niteControlStore';
 import { theme } from '../../lib/theme';
 import type { NiteControlStackScreenProps } from '../../types/navigation';
 import { CommonActions } from '@react-navigation/native';
+import { StackActions } from '@react-navigation/native';
 
 type Props = NiteControlStackScreenProps<'QrScan'>;
 
@@ -63,31 +64,7 @@ export default function QrScanScreen({ navigation }: Props) {
   const onAdd = () => {
     const id = code.trim() || `qr-${Date.now()}`;
     addCup({ id, name: `Cup ${id.slice(-4)}`, isConnected: false });
-    const rootNav = navigation.getParent()?.getParent()?.getParent();
-    const resetAction = CommonActions.reset({
-      index: 0,
-      routes: [
-        {
-          name: 'MainTabs',
-          state: {
-            index: 2,
-            routes: [
-              { name: 'Home' },
-              { name: 'Shop' },
-              {
-                name: 'NiteControl',
-                state: {
-                  index: 0,
-                  routes: [{ name: 'MultiCupControl' }],
-                },
-              },
-              { name: 'Profile' },
-            ],
-          },
-        },
-      ],
-    });
-    (rootNav ?? navigation).dispatch(resetAction);
+    navigation.dispatch(StackActions.replace('MultiCupControl'));
   };
 
   const handleScan = ({ data }: BarCodeScannerResult) => {
@@ -96,31 +73,7 @@ export default function QrScanScreen({ navigation }: Props) {
     const id = String(data).trim();
     const safeId = id || `qr-${Date.now()}`;
     addCup({ id: safeId, name: `Cup ${safeId.slice(-4)}`, isConnected: false });
-    const rootNav = navigation.getParent()?.getParent()?.getParent();
-    const resetAction = CommonActions.reset({
-      index: 0,
-      routes: [
-        {
-          name: 'MainTabs',
-          state: {
-            index: 2,
-            routes: [
-              { name: 'Home' },
-              { name: 'Shop' },
-              {
-                name: 'NiteControl',
-                state: {
-                  index: 0,
-                  routes: [{ name: 'MultiCupControl' }],
-                },
-              },
-              { name: 'Profile' },
-            ],
-          },
-        },
-      ],
-    });
-    (rootNav ?? navigation).dispatch(resetAction);
+    navigation.dispatch(StackActions.replace('MultiCupControl'));
   };
 
   const reRequestPermission = async () => {
